@@ -1,10 +1,7 @@
-import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getTenantByHost } from "@/lib/tenant";
-import type { Tenant } from "@/types/tenant";
+import { getToken } from "next-auth/jwt";
 
-// Helper function to get dashboard URL by role
 function getDashboardUrlByRole(role: string): string {
   switch (role) {
     case "ADMIN":
@@ -18,20 +15,12 @@ function getDashboardUrlByRole(role: string): string {
 }
 
 /**
- * Attach tenant identity headers for downstream Server Components.
- * Does not redirect when a tenant is missing — auth behavior is unchanged.
+ * Forward host for server-side tenant resolution.
+ * Do not import Prisma / Neon here — they blow past the Edge 1 MB limit.
  */
-function nextWithTenant(req: NextRequest, tenant: Tenant | null) {
+function nextWithTenantHost(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
-  const host = req.headers.get("host") ?? "";
-
-  requestHeaders.set("x-tenant-host", host);
-
-  if (tenant) {
-    requestHeaders.set("x-tenant-id", tenant.id);
-    requestHeaders.set("x-tenant-slug", tenant.slug);
-    requestHeaders.set("x-tenant-name", tenant.name);
-  }
+  requestHeaders.set("x-tenant-host", req.headers.get("host") ?? "");
 
   return NextResponse.next({
     request: {
@@ -40,96 +29,86 @@ function nextWithTenant(req: NextRequest, tenant: Tenant | null) {
   });
 }
 
-export default withAuth(
-  async function middleware(req) {
-    // Backwards-compatible route redirects (old URLs)
-    if (req.nextUrl.pathname.startsWith("/dashboard/teacher")) {
-      const nextPath = req.nextUrl.pathname.replace("/dashboard/teacher", "/dashboard/admin");
-      const url = req.nextUrl.clone();
-      url.pathname = nextPath;
-      return NextResponse.redirect(url);
-    }
+export async function middleware(req: NextRequest) {
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
 
-    const isAdminRoute = req.nextUrl.pathname.startsWith("/dashboard/admin");
-    const isAdmin = req.nextauth.token?.role === "ADMIN";
-    const isAdminAssistantRoute = req.nextUrl.pathname.startsWith("/dashboard/admin-assistant");
-    const isAdminAssistant = req.nextauth.token?.role === "ADMIN_ASSISTANT";
-
-    // If an admin assistant hits old admin URLs, send to admin-assistant
-    if (isAdminAssistant && isAdminRoute && !isAdminAssistantRoute) {
-      const nextPath = req.nextUrl.pathname.replace("/dashboard/admin", "/dashboard/admin-assistant");
-      const url = req.nextUrl.clone();
-      url.pathname = nextPath;
-      return NextResponse.redirect(url);
-    }
-    const isAuthPage = req.nextUrl.pathname.startsWith("/sign-in") || 
-                      req.nextUrl.pathname.startsWith("/sign-up") ||
-                      req.nextUrl.pathname.startsWith("/forgot-password") ||
-                      req.nextUrl.pathname.startsWith("/reset-password") ||
-                      req.nextUrl.pathname.startsWith("/device-conflict"); // ✅ Add this
-    
-    // Add check for payment status page
-    const isPaymentStatusPage = req.nextUrl.pathname.includes("/payment-status");
-
-    // If user is on auth page and is authenticated, redirect to appropriate dashboard
-    if (isAuthPage && req.nextauth.token) {
-      const userRole = req.nextauth.token?.role || "STUDENT";
-      const dashboardUrl = getDashboardUrlByRole(userRole);
-      return NextResponse.redirect(new URL(dashboardUrl, req.url));
-    }
-
-    // If user is not authenticated and trying to access protected routes
-    // But exclude payment status page from this check
-    if (!req.nextauth.token && !isAuthPage && !isPaymentStatusPage) {
-      return NextResponse.redirect(new URL("/sign-in", req.url), { status: 302 });
-    }
-
-    // If user is not admin (or admin assistant) but trying to access admin routes
-    if (isAdminRoute && !(isAdmin || isAdminAssistant)) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-
-    // If user is not an admin assistant but trying to access admin-assistant routes
-    if (isAdminAssistantRoute && !isAdminAssistant) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-
-    // If user accesses main dashboard, redirect to role-specific dashboard
-    if (req.nextUrl.pathname === "/dashboard" && req.nextauth.token) {
-      const userRole = req.nextauth.token?.role || "STUDENT";
-      const dashboardUrl = getDashboardUrlByRole(userRole);
-      
-      // Only redirect if the user's role-specific dashboard is different from the main dashboard
-      if (userRole !== "STUDENT") {
-        return NextResponse.redirect(new URL(dashboardUrl, req.url));
-      }
-    }
-
-    // Handle POST requests to payment status page
-    if (isPaymentStatusPage && req.method === "POST") {
-      // Convert POST to GET by redirecting to the same URL
-      return NextResponse.redirect(req.url, { status: 303 });
-    }
-
-    // Resolve tenant from Host via getTenantByHost — no tenant redirects.
-    const host = req.headers.get("host") ?? "";
-    let tenant: Tenant | null = null;
-
-    try {
-      tenant = await getTenantByHost(host);
-    } catch (error) {
-      // Keep existing auth flow working if tenant lookup fails.
-      console.error("[middleware] tenant resolution failed:", error);
-    }
-
-    return nextWithTenant(req, tenant);
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => true, // We'll handle authorization in the middleware function
-    },
+  // Backwards-compatible route redirects (old URLs)
+  if (req.nextUrl.pathname.startsWith("/dashboard/teacher")) {
+    const nextPath = req.nextUrl.pathname.replace(
+      "/dashboard/teacher",
+      "/dashboard/admin"
+    );
+    const url = req.nextUrl.clone();
+    url.pathname = nextPath;
+    return NextResponse.redirect(url);
   }
-);
+
+  const isAdminRoute = req.nextUrl.pathname.startsWith("/dashboard/admin");
+  const isAdmin = token?.role === "ADMIN";
+  const isAdminAssistantRoute = req.nextUrl.pathname.startsWith(
+    "/dashboard/admin-assistant"
+  );
+  const isAdminAssistant = token?.role === "ADMIN_ASSISTANT";
+
+  // If an admin assistant hits old admin URLs, send to admin-assistant
+  if (isAdminAssistant && isAdminRoute && !isAdminAssistantRoute) {
+    const nextPath = req.nextUrl.pathname.replace(
+      "/dashboard/admin",
+      "/dashboard/admin-assistant"
+    );
+    const url = req.nextUrl.clone();
+    url.pathname = nextPath;
+    return NextResponse.redirect(url);
+  }
+
+  const isAuthPage =
+    req.nextUrl.pathname.startsWith("/sign-in") ||
+    req.nextUrl.pathname.startsWith("/sign-up") ||
+    req.nextUrl.pathname.startsWith("/forgot-password") ||
+    req.nextUrl.pathname.startsWith("/reset-password") ||
+    req.nextUrl.pathname.startsWith("/device-conflict");
+
+  const isPaymentStatusPage = req.nextUrl.pathname.includes("/payment-status");
+
+  if (isAuthPage && token) {
+    const userRole = (token.role as string) || "STUDENT";
+    return NextResponse.redirect(
+      new URL(getDashboardUrlByRole(userRole), req.url)
+    );
+  }
+
+  if (!token && !isAuthPage && !isPaymentStatusPage) {
+    return NextResponse.redirect(new URL("/sign-in", req.url), {
+      status: 302,
+    });
+  }
+
+  if (isAdminRoute && !(isAdmin || isAdminAssistant)) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  if (isAdminAssistantRoute && !isAdminAssistant) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  if (req.nextUrl.pathname === "/dashboard" && token) {
+    const userRole = (token.role as string) || "STUDENT";
+    if (userRole !== "STUDENT") {
+      return NextResponse.redirect(
+        new URL(getDashboardUrlByRole(userRole), req.url)
+      );
+    }
+  }
+
+  if (isPaymentStatusPage && req.method === "POST") {
+    return NextResponse.redirect(req.url, { status: 303 });
+  }
+
+  return nextWithTenantHost(req);
+}
 
 export const config = {
   matcher: [

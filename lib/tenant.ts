@@ -8,8 +8,8 @@
  *   courses.elhawy.com     → Tenant where customDomain = "courses.elhawy.com"
  *   localhost / 127.0.0.1  → Tenant where slug = "almoheet"
  *
- * Uses the Neon serverless driver adapter so this module is safe to import
- * from Next.js middleware (Edge) as well as Server Components / Route Handlers.
+ * Uses the Neon serverless driver adapter for Server Components / Route Handlers.
+ * Do not import this from middleware — Prisma exceeds the Edge bundle size limit.
  *
  * TODO(multi-tenant): After tenantId is added to User, Course, Purchase, etc.,
  * use the resolved tenant id to scope all data queries.

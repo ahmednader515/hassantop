@@ -4,8 +4,8 @@
  * Server-side helper for App Router Server Components / Route Handlers.
  * Reads tenant identity headers set by middleware (`x-tenant-id`, etc.).
  *
- * Falls back to host-based resolution when headers are missing (e.g. if
- * Edge DB lookup failed), so local and server renders stay consistent.
+ * Resolves tenant from host (Node runtime). Middleware only forwards
+ * `x-tenant-host` to keep the Edge bundle under the 1 MB limit.
  *
  * TODO(multi-tenant): Prefer this helper (or request context) whenever
  * scoping queries by tenantId after models are updated.
