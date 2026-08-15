@@ -14,21 +14,6 @@ function getDashboardUrlByRole(role: string): string {
   }
 }
 
-/**
- * Forward host for server-side tenant resolution.
- * Do not import Prisma / Neon here — they blow past the Edge 1 MB limit.
- */
-function nextWithTenantHost(req: NextRequest) {
-  const requestHeaders = new Headers(req.headers);
-  requestHeaders.set("x-tenant-host", req.headers.get("host") ?? "");
-
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
-}
-
 export async function middleware(req: NextRequest) {
   const token = await getToken({
     req,
@@ -107,7 +92,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(req.url, { status: 303 });
   }
 
-  return nextWithTenantHost(req);
+  return NextResponse.next();
 }
 
 export const config = {

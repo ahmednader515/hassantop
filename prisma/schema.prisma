@@ -9,7 +9,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// TODO(multi-tenant): Add tenantId (+ Tenant relation) to User when enabling data isolation.
 model User {
   id                      String    @id @default(uuid())
   fullName                String
@@ -34,7 +33,6 @@ model User {
   chapterViews            ChapterView[]
 }
 
-// TODO(multi-tenant): Add tenantId (+ Tenant relation) to Course when enabling data isolation.
 model Course {
   id String @id @default(uuid())
   userId String
@@ -144,7 +142,6 @@ model UserProgress {
     @@index([chapterId])
 }
 
-// TODO(multi-tenant): Add tenantId (+ Tenant relation) to Purchase when enabling data isolation.
 model Purchase {
     id String @id @default(uuid())
     userId String
@@ -273,22 +270,4 @@ model QuizAnswer {
 
     @@index([questionId])
     @@index([quizResultId])
-}
-
-/// White-label SaaS customer (teacher, academy, or school).
-/// Resolved from the incoming Host header (subdomain or custom domain).
-/// TODO(multi-tenant): Wire tenantId into User / Course / Purchase before scoping queries.
-model Tenant {
-  id             String   @id @default(cuid())
-  name           String
-  slug           String   @unique
-  subdomain      String?  @unique
-  customDomain   String?  @unique
-  logoUrl        String?
-  faviconUrl     String?
-  primaryColor   String?
-  secondaryColor String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
 }

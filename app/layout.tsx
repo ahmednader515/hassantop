@@ -7,7 +7,6 @@ import { Footer } from "@/components/footer";
 import { NavigationLoading } from "@/components/navigation-loading";
 import { Suspense } from "react";
 import { theme } from "@/lib/theme";
-import { getCurrentTenant } from "@/lib/getCurrentTenant";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,13 +34,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const tenant = await getCurrentTenant();
-
   return (
     <html suppressHydrationWarning lang="ar" dir="rtl" className={`${geistSans.variable} ${geistMono.variable} ${playpenSansArabic.variable}`}>
       <body suppressHydrationWarning className="font-playpen-sans-arabic">
@@ -56,7 +53,7 @@ export default async function RootLayout({
             `,
           }}
         />
-        <Providers tenant={tenant}>
+        <Providers>
           <Suspense fallback={null}>
             <NavigationLoading />
           </Suspense>
