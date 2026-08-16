@@ -22,6 +22,16 @@ function isTabValue(v: string | null): v is TabValue {
   );
 }
 
+const TAB_TRIGGER_CLASS =
+  "min-h-11 shrink-0 rounded-xl border border-border/70 bg-card px-4 text-sm font-semibold text-foreground shadow-sm " +
+  "transition-all duration-200 ease-out " +
+  "hover:border-brand/40 hover:bg-brand/10 hover:text-brand hover:shadow-md " +
+  "active:scale-[0.97] active:bg-brand/20 active:shadow-none " +
+  "data-[state=active]:border-brand data-[state=active]:bg-brand data-[state=active]:text-white data-[state=active]:shadow-md " +
+  "data-[state=active]:hover:bg-brand data-[state=active]:hover:text-white data-[state=active]:hover:border-brand " +
+  "data-[state=active]:active:scale-[0.97] data-[state=active]:active:brightness-95 " +
+  "focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2";
+
 function TeacherManagementContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -45,34 +55,19 @@ function TeacherManagementContent() {
       </h1>
       <Tabs value={activeTab} onValueChange={setTab} className="w-full">
         <TabsList className="flex h-auto w-full flex-row-reverse flex-nowrap items-stretch justify-start gap-2 overflow-x-auto overscroll-x-contain touch-pan-x [-webkit-overflow-scrolling:touch] rounded-xl bg-transparent p-0 pb-1">
-          <TabsTrigger
-            value="users"
-            className="min-h-11 shrink-0 rounded-xl border border-border/70 bg-card px-4 text-sm font-semibold text-foreground shadow-sm data-[state=active]:border-brand/40 data-[state=active]:bg-brand/10 data-[state=active]:text-brand data-[state=active]:shadow-none"
-          >
+          <TabsTrigger value="users" className={TAB_TRIGGER_CLASS}>
             المستخدمين
           </TabsTrigger>
-          <TabsTrigger
-            value="balances"
-            className="min-h-11 shrink-0 rounded-xl border border-border/70 bg-card px-4 text-sm font-semibold text-foreground shadow-sm data-[state=active]:border-brand/40 data-[state=active]:bg-brand/10 data-[state=active]:text-brand data-[state=active]:shadow-none"
-          >
+          <TabsTrigger value="balances" className={TAB_TRIGGER_CLASS}>
             الأرصدة
           </TabsTrigger>
-          <TabsTrigger
-            value="courses"
-            className="min-h-11 shrink-0 rounded-xl border border-border/70 bg-card px-4 text-sm font-semibold text-foreground shadow-sm data-[state=active]:border-brand/40 data-[state=active]:bg-brand/10 data-[state=active]:text-brand data-[state=active]:shadow-none"
-          >
+          <TabsTrigger value="courses" className={TAB_TRIGGER_CLASS}>
             اضافة و حذف الكورسات
           </TabsTrigger>
-          <TabsTrigger
-            value="passwords"
-            className="min-h-11 shrink-0 rounded-xl border border-border/70 bg-card px-4 text-sm font-semibold text-foreground shadow-sm data-[state=active]:border-brand/40 data-[state=active]:bg-brand/10 data-[state=active]:text-brand data-[state=active]:shadow-none"
-          >
+          <TabsTrigger value="passwords" className={TAB_TRIGGER_CLASS}>
             كلمات المرور
           </TabsTrigger>
-          <TabsTrigger
-            value="create-account"
-            className="min-h-11 shrink-0 rounded-xl border border-border/70 bg-card px-4 text-sm font-semibold text-foreground shadow-sm data-[state=active]:border-brand/40 data-[state=active]:bg-brand/10 data-[state=active]:text-brand data-[state=active]:shadow-none"
-          >
+          <TabsTrigger value="create-account" className={TAB_TRIGGER_CLASS}>
             انشاء حساب طالب
           </TabsTrigger>
         </TabsList>

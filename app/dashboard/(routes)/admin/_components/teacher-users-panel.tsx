@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Edit, Trash2 } from "lucide-react";
+import { Search, Edit, Trash2, Users } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { toast } from "sonner";
@@ -88,6 +89,7 @@ export function TeacherUsersPanel({ embedded = false }: { embedded?: boolean }) 
     });
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         fetchUsers();
@@ -99,6 +101,7 @@ export function TeacherUsersPanel({ embedded = false }: { embedded?: boolean }) 
             if (response.ok) {
                 const data = await response.json();
                 setUsers(data);
+                setSelectedIds(new Set());
             } else {
                 console.error("Error fetching users:", response.status, response.statusText);
                 if (response.status === 403) {
@@ -192,6 +195,44 @@ export function TeacherUsersPanel({ embedded = false }: { embedded?: boolean }) 
         }
     };
 
+    const handleDeleteSelected = async () => {
+        const ids = Array.from(selectedIds);
+        if (ids.length === 0) return;
+
+        setIsDeleting(true);
+        try {
+            const results = await Promise.all(
+                ids.map((id) =>
+                    fetch(`/api/admin/users/${id}`, { method: "DELETE" })
+                )
+            );
+            const failed = results.filter((r) => !r.ok).length;
+            const succeeded = results.length - failed;
+
+            if (succeeded > 0) {
+                toast.success(`تم حذف ${succeeded} مستخدم بنجاح`);
+            }
+            if (failed > 0) {
+                toast.error(`فشل حذف ${failed} مستخدم`);
+            }
+            await fetchUsers();
+        } catch (error) {
+            console.error("Error deleting selected users:", error);
+            toast.error("حدث خطأ في حذف المستخدمين");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const toggleSelected = (userId: string, checked: boolean) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (checked) next.add(userId);
+            else next.delete(userId);
+            return next;
+        });
+    };
+
     const filteredUsers = users.filter(user =>
         user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.phoneNumber.includes(searchTerm)
@@ -200,6 +241,21 @@ export function TeacherUsersPanel({ embedded = false }: { embedded?: boolean }) 
     // Separate users by role
     const studentUsers = filteredUsers.filter(user => user.role === "STUDENT");
     const staffUsers = filteredUsers.filter(user => user.role === "ADMIN" || user.role === "ADMIN_ASSISTANT");
+    const totalStudents = users.filter((user) => user.role === "STUDENT").length;
+    const allVisibleSelected =
+        studentUsers.length > 0 &&
+        studentUsers.every((user) => selectedIds.has(user.id));
+
+    const toggleSelectAllStudents = (checked: boolean) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            for (const user of studentUsers) {
+                if (checked) next.add(user.id);
+                else next.delete(user.id);
+            }
+            return next;
+        });
+    };
 
     if (loading) {
         return (
@@ -218,6 +274,51 @@ export function TeacherUsersPanel({ embedded = false }: { embedded?: boolean }) 
                 </h1>
             </div>
             )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card px-4 py-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 text-brand">
+                        <Users className="h-5 w-5" />
+                    </div>
+                    <div className="text-right">
+                        <p className="text-sm text-muted-foreground">عدد الطلاب</p>
+                        <p className="text-2xl font-bold tabular-nums text-foreground">
+                            {totalStudents}
+                        </p>
+                    </div>
+                </div>
+
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button
+                            variant="destructive"
+                            className="min-h-11 gap-2"
+                            disabled={isDeleting || selectedIds.size === 0}
+                        >
+                            <Trash2 className="h-4 w-4 shrink-0" />
+                            حذف المستخدمين
+                            {selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>حذف المستخدمين المحددين؟</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                سيتم حذف {selectedIds.size} مستخدم وجميع بياناتهم المرتبطة نهائياً. لا يمكن التراجع عن هذا الإجراء.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleDeleteSelected}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                                حذف
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
 
             {/* Staff Table (Admins and Teachers) */}
             {staffUsers.length > 0 && (
@@ -422,6 +523,15 @@ export function TeacherUsersPanel({ embedded = false }: { embedded?: boolean }) 
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead className="w-12 text-right">
+                                        <Checkbox
+                                            checked={allVisibleSelected}
+                                            onCheckedChange={(checked) =>
+                                                toggleSelectAllStudents(checked === true)
+                                            }
+                                            aria-label="تحديد كل الطلاب"
+                                        />
+                                    </TableHead>
                                     <TableHead className="text-right">الاسم</TableHead>
                                     <TableHead className="text-right">رقم الهاتف</TableHead>
                                     <TableHead className="text-right">رقم هاتف ولي الأمر</TableHead>
@@ -435,6 +545,15 @@ export function TeacherUsersPanel({ embedded = false }: { embedded?: boolean }) 
                             <TableBody>
                                 {studentUsers.map((user) => (
                                     <TableRow key={user.id}>
+                                        <TableCell label="تحديد">
+                                            <Checkbox
+                                                checked={selectedIds.has(user.id)}
+                                                onCheckedChange={(checked) =>
+                                                    toggleSelected(user.id, checked === true)
+                                                }
+                                                aria-label={`تحديد ${user.fullName}`}
+                                            />
+                                        </TableCell>
                                         <TableCell label="الاسم" className="font-medium">
                                             {user.fullName}
                                         </TableCell>
