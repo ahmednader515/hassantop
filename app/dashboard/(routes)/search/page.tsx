@@ -1,3 +1,4 @@
+import { courseOrderBy } from "@/lib/course-order";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -51,11 +52,9 @@ export default async function SearchPage({
                 }
             }
         },
-        orderBy: {
-            createdAt: "desc",
-        }
+        orderBy: courseOrderBy
     ,
-        cacheStrategy: process.env.NODE_ENV === "production" ? { ttl: 60 } : undefined,
+
     });
 
     const coursesWithProgress = await Promise.all(

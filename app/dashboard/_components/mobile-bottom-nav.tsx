@@ -15,6 +15,7 @@ import {
   BarChart,
   Ticket,
   Shield,
+  BookOpenCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isDashboardSectionActive } from "@/lib/dashboard-nav";
@@ -31,6 +32,7 @@ const adminNav: NavItem[] = [
   { href: "/dashboard/admin/courses", label: "كورساتي", icon: List },
   { href: "/dashboard/admin/assessments", label: "اختبارات ودرجات", icon: FileText },
   { href: "/dashboard/admin/management", label: "إدارة الطلاب", icon: Users },
+  { href: "/dashboard/admin/progress", label: "تقدم الطلاب", icon: BookOpenCheck },
   { href: "/dashboard/admin/analytics", label: "إحصائيات", icon: BarChart },
   { href: "/dashboard/admin/codes", label: "الأكواد", icon: Ticket },
 ];
@@ -50,6 +52,7 @@ function navForRole(role: string | undefined): NavItem[] {
 }
 
 function gridColsClass(count: number) {
+  if (count === 6) return "grid-cols-6";
   if (count >= 5) return "grid-cols-5";
   if (count === 4) return "grid-cols-4";
   return "grid-cols-3";

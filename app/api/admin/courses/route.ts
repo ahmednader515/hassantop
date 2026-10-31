@@ -1,3 +1,4 @@
+import { courseOrderBy } from "@/lib/course-order";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
@@ -24,9 +25,7 @@ export async function GET() {
         title: true,
         isPublished: true,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: courseOrderBy,
     });
 
     return NextResponse.json(courses);

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Search, Eye, BookOpen, CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
@@ -54,11 +54,14 @@ interface Purchase {
     course: {
         id: string;
         title: string;
-        price: number;
+        price: number | null;
     };
 }
 
-export function AdminProgressPanel({ embedded = false }: { embedded?: boolean }) {
+export function AdminProgressPanel({ embedded = false, variant = "admin-assistant" }: {
+    embedded?: boolean;
+    variant?: "admin" | "admin-assistant";
+}) {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -68,39 +71,50 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
     const [allChapters, setAllChapters] = useState<Chapter[]>([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [loadingProgress, setLoadingProgress] = useState(false);
+    const [usersError, setUsersError] = useState(false);
+    const [progressError, setProgressError] = useState(false);
+    const progressRequest = useRef(0);
 
-    useEffect(() => {
-        fetchUsers();
-    }, []);
-
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
+        setLoading(true);
+        setUsersError(false);
         try {
-            const response = await fetch("/api/admin-assistant/users");
-            if (response.ok) {
-                const data = await response.json();
-                setUsers(data);
-            }
+            const response = await fetch(`/api/${variant}/users`);
+            if (!response.ok) throw new Error("Failed to load students");
+            const data = await response.json();
+            setUsers(data);
         } catch (error) {
             console.error("Error fetching users:", error);
+            setUsersError(true);
         } finally {
             setLoading(false);
         }
-    };
+    }, [variant]);
+
+    useEffect(() => {
+        void fetchUsers();
+    }, [fetchUsers]);
 
     const fetchUserProgress = async (userId: string) => {
+        const request = ++progressRequest.current;
         setLoadingProgress(true);
+        setProgressError(false);
+        setUserProgress([]);
+        setUserPurchases([]);
+        setAllChapters([]);
         try {
-            const response = await fetch(`/api/admin-assistant/users/${userId}/progress`);
-            if (response.ok) {
-                const data = await response.json();
-                setUserProgress(data.userProgress);
-                setUserPurchases(data.purchases);
-                setAllChapters(data.allChapters || []);
-            }
+            const response = await fetch(`/api/${variant}/users/${userId}/progress`);
+            if (!response.ok) throw new Error("Failed to load progress");
+            const data = await response.json();
+            if (request !== progressRequest.current) return;
+            setUserProgress(data.userProgress);
+            setUserPurchases(data.purchases);
+            setAllChapters(data.allChapters || []);
         } catch (error) {
             console.error("Error fetching user progress:", error);
+            if (request === progressRequest.current) setProgressError(true);
         } finally {
-            setLoadingProgress(false);
+            if (request === progressRequest.current) setLoadingProgress(false);
         }
     };
 
@@ -111,14 +125,15 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
     };
 
     const filteredUsers = users.filter(user =>
-        user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.phoneNumber.includes(searchTerm)
+        user.fullName.toLowerCase().includes(searchTerm.trim().toLowerCase()) ||
+        user.phoneNumber.includes(searchTerm.trim())
     );
 
     const studentUsers = filteredUsers.filter(user => user.role === "STUDENT");
 
-    const completedProgress = userProgress.filter(p => p.isCompleted).length;
-    const inProgressChapters = userProgress.filter(p => !p.isCompleted).length;
+    const availableProgress = userProgress.filter(p => allChapters.some(chapter => chapter.id === p.chapter.id));
+    const completedProgress = availableProgress.filter(p => p.isCompleted).length;
+    const inProgressChapters = availableProgress.filter(p => !p.isCompleted).length;
     const totalAvailableChapters = allChapters.length;
     const notStartedChapters = totalAvailableChapters - completedProgress - inProgressChapters;
     const progressPercentage = totalAvailableChapters > 0 ? (completedProgress / totalAvailableChapters) * 100 : 0;
@@ -132,7 +147,7 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
     }
 
     return (
-        <div className="p-6 space-y-6 text-right" dir="rtl">
+        <div className={`${embedded ? "" : "p-4 md:p-6"} space-y-6 text-right`} dir="rtl">
             <div className="flex items-center justify-between">
                 <h1 className="text-right text-3xl font-bold text-gray-900 dark:text-white">
                     تقدم الطلاب
@@ -142,10 +157,11 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
             <Card>
                 <CardHeader>
                     <CardTitle>قائمة الطلاب</CardTitle>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center gap-2">
                         <Search className="h-4 w-4 text-muted-foreground" />
                         <Input
                             placeholder="البحث بالاسم أو رقم الهاتف..."
+                            aria-label="البحث بالاسم أو رقم الهاتف"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="max-w-sm"
@@ -153,17 +169,30 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
                     </div>
                 </CardHeader>
                 <CardContent>
+                    {usersError ? (
+                        <div className="space-y-3 py-8 text-center" role="alert">
+                            <p>تعذر تحميل الطلاب</p>
+                            <Button variant="outline" onClick={() => void fetchUsers()}>إعادة المحاولة</Button>
+                        </div>
+                    ) : (
                     <Table>
                                                  <TableHeader>
                              <TableRow>
                                  <TableHead className="text-right">الاسم</TableHead>
                                  <TableHead className="text-right">رقم الهاتف</TableHead>
                                  <TableHead className="text-right">الكورسات المشتراة</TableHead>
-                                 <TableHead className="text-right">التقدم</TableHead>
+                                 <TableHead className="text-right">الدروس المسجلة</TableHead>
                                  <TableHead className="text-right">الإجراءات</TableHead>
                              </TableRow>
                          </TableHeader>
                         <TableBody>
+                            {studentUsers.length === 0 && (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                                        {searchTerm.trim() ? "لا يوجد طلاب مطابقون للبحث" : "لا يوجد طلاب حتى الآن"}
+                                    </TableCell>
+                                </TableRow>
+                            )}
                             {studentUsers.map((user) => (
                                 <TableRow key={user.id}>
                                     <TableCell label="الاسم" className="font-medium">
@@ -194,11 +223,12 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
                             ))}
                         </TableBody>
                     </Table>
+                    )}
                 </CardContent>
             </Card>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" dir="rtl">
                     <DialogHeader>
                         <DialogTitle>
                             تقدم {selectedUser?.fullName}
@@ -207,6 +237,11 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
                     
                     {loadingProgress ? (
                         <div className="text-center py-8">جاري التحميل...</div>
+                    ) : progressError ? (
+                        <div className="space-y-3 py-8 text-center" role="alert">
+                            <p>تعذر تحميل تقدم الطالب</p>
+                            <Button variant="outline" onClick={() => selectedUser && void fetchUserProgress(selectedUser.id)}>إعادة المحاولة</Button>
+                        </div>
                     ) : (
                         <div className="space-y-6">
                             {/* Progress Summary */}
@@ -221,10 +256,15 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
                                             <span className="font-bold">{progressPercentage.toFixed(1)}%</span>
                                         </div>
                                         <Progress value={progressPercentage} className="w-full" />
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
+                                        <p className="text-sm text-muted-foreground">التقدم في الدروس المنشورة للكورسات المشتراة</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
                                             <div>
                                                 <div className="text-2xl font-bold text-green-600">{completedProgress}</div>
                                                 <div className="text-sm text-muted-foreground">مكتمل</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-2xl font-bold text-brand">{inProgressChapters}</div>
+                                                <div className="text-sm text-muted-foreground">قيد التقدم</div>
                                             </div>
                                             <div>
                                                 <div className="text-2xl font-bold text-gray-600">{notStartedChapters}</div>
@@ -251,13 +291,16 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
                                              </TableRow>
                                          </TableHeader>
                                         <TableBody>
+                                            {userPurchases.length === 0 && (
+                                                <TableRow><TableCell colSpan={4} className="py-6 text-center text-muted-foreground">لا توجد كورسات مشتراة</TableCell></TableRow>
+                                            )}
                                             {userPurchases.map((purchase) => (
                                                 <TableRow key={purchase.id}>
                                                     <TableCell label="اسم الكورس" className="font-medium">
                                                         {purchase.course.title}
                                                     </TableCell>
                                                     <TableCell label="السعر">
-                                                        {purchase.course.price} جنيه
+                                                        {purchase.course.price ?? 0} جنيه
                                                     </TableCell>
                                                     <TableCell label="الحالة">
                                                         <Badge variant={purchase.status === "ACTIVE" ? "default" : "secondary"}>
@@ -290,6 +333,9 @@ export function AdminProgressPanel({ embedded = false }: { embedded?: boolean })
                                              </TableRow>
                                          </TableHeader>
                                         <TableBody>
+                                            {allChapters.length === 0 && (
+                                                <TableRow><TableCell colSpan={4} className="py-6 text-center text-muted-foreground">لا توجد دروس منشورة في الكورسات المشتراة</TableCell></TableRow>
+                                            )}
                                             {allChapters.map((chapter) => {
                                                 const progress = userProgress.find(p => p.chapter.id === chapter.id);
                                                 return (

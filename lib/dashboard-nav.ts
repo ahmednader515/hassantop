@@ -73,8 +73,7 @@ export function isDashboardSectionActive(
     return (
       pathname === href ||
       pathname.startsWith(`${href}/`) ||
-      pathname.startsWith("/dashboard/admin/quizzes") ||
-      pathname.startsWith("/dashboard/admin/progress")
+      pathname.startsWith("/dashboard/admin/quizzes")
     );
   }
 

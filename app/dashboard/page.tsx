@@ -1,3 +1,4 @@
+import { courseOrderBy } from "@/lib/course-order";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -196,9 +197,7 @@ const CoursesPage = async () => {
         }
       }
     },
-    orderBy: {
-      createdAt: "desc",
-    }
+    orderBy: courseOrderBy
   });
 
   const coursesWithProgress = await Promise.all(

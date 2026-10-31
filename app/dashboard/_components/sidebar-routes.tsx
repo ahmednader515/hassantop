@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { BarChart, Compass, Layout, List, Wallet, Shield, Users, FileText, Ticket } from "lucide-react";
+import { BarChart, Compass, Layout, List, Wallet, Shield, Users, FileText, Ticket, BookOpenCheck } from "lucide-react";
 import { SidebarItem } from "./sidebar-item";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -43,6 +43,11 @@ const adminRoutes = [
         icon: Users,
         label: "إدارة الطلاب والحسابات",
         href: "/dashboard/admin/management",
+    },
+    {
+        icon: BookOpenCheck,
+        label: "تقدم الطلاب",
+        href: "/dashboard/admin/progress",
     },
     {
         icon: Ticket,

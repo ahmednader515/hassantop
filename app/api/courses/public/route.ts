@@ -1,3 +1,4 @@
+import { courseOrderBy } from "@/lib/course-order";
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -27,10 +28,8 @@ export async function GET() {
           }
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-      cacheStrategy: process.env.NODE_ENV === "production" ? { ttl: 120 } : undefined,
+      orderBy: courseOrderBy,
+
     });
 
     // Return courses with default progress of 0 for public view

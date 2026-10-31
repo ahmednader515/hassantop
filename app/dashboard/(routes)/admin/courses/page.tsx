@@ -1,3 +1,4 @@
+import { courseOrderBy } from "@/lib/course-order";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -5,8 +6,9 @@ import { CoursesTable } from "./_components/courses-table";
 import { columns } from "./_components/columns";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { PlusCircle, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { PlusCircle, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CourseOrderDialog } from "./_components/course-order-dialog";
 
 const CoursesPage = async () => {
     const { userId } = await auth();
@@ -33,9 +35,7 @@ const CoursesPage = async () => {
                 }
             },
         },
-        orderBy: {
-            createdAt: "desc",
-        },
+        orderBy: courseOrderBy,
     }).then(courses => courses.map(course => ({
         ...course,
         price: course.price || 0,
@@ -56,12 +56,15 @@ const CoursesPage = async () => {
                         استخدم زر «تعديل الكورس» بجانب أي كورس.
                     </p>
                 </div>
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                <CourseOrderDialog courses={courses.map(({ id, title, isPublished }) => ({ id, title, isPublished }))} />
                 <Link href="/dashboard/admin/courses/create" className="shrink-0">
                     <Button className="bg-brand hover:bg-brand/90 text-white w-full sm:w-auto">
                         <PlusCircle className="h-4 w-4 mr-2" />
                         إنشاء كورس جديد
                     </Button>
                 </Link>
+                </div>
             </div>
 
             {hasUnpublishedCourses && (
@@ -76,7 +79,7 @@ const CoursesPage = async () => {
                             <li>إضافة وصف للكورس</li>
                             <li>إضافة صورة للكورس</li>
                             <li>إضافة درس واحد على الأقل ونشره</li>
-                            <li>النقر على زر "نشر" في صفحة إعدادات الكورس</li>
+                            <li>النقر على زر «نشر» في صفحة إعدادات الكورس</li>
                         </ul>
                     </AlertDescription>
                 </Alert>
